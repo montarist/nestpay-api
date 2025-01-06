@@ -1,3 +1,4 @@
+import { ProcReturnCode } from '../enums/proc-return-code.enum';
 import { TransactionStatus } from '../enums/transaction-status.enum';
 
 export interface PaymentResponse {
@@ -8,7 +9,7 @@ export interface PaymentResponse {
     responseMessage: string;
     authCode?: string;
     hostRefNum?: string;
-    procReturnCode?: string;
+    procReturnCode: ProcReturnCode;
     tranDate?: string;
     extra?: Record<string, string>;
 } 

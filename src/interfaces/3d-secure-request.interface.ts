@@ -1,7 +1,7 @@
 import { Currency } from '../enums/currency.enum';
 
 export interface ThreeDSecureRequest {
-    orderId: string;
+    orderId?: string;
     amount: number;
     currency: Currency;
     cardNumber: string;

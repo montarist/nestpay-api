@@ -9,6 +9,7 @@ NestPay (EST) payment gateway integration for Node.js and NestJS applications. T
 - Easy to use API with Promise-based methods
 - Comprehensive error handling
 - Both Node.js and NestJS support
+- Full XML field support including billing, shipping, and order details
 
 ## Installation
 
@@ -21,63 +22,143 @@ npm install @montarist/nestpay-api
 ### Basic Usage (Node.js)
 
 ```typescript
-const {
-  NestPayService,
-  TransactionType,
-  Currency,
-} = require("@montarist/nestpay-api");
+const { NestPayService, TransactionType, Currency } = require('@montarist/nestpay-api');
 
 // Initialize the service
 const nestpay = new NestPayService({
-  clientId: "YOUR_CLIENT_ID",
-  username: "YOUR_API_USERNAME",
-  password: "YOUR_API_PASSWORD",
-  environment: "TEST", // or 'PROD'
-  bank: "isbank",
+	clientId: 'YOUR_CLIENT_ID',
+	username: 'YOUR_API_USERNAME',
+	password: 'YOUR_API_PASSWORD',
+	environment: 'TEST', // or 'PROD'
+	bank: 'isbank',
 });
 
-// Process a payment
-async function processPayment() {
-  try {
-    const response = await nestpay.processPayment({
-      type: TransactionType.PAYMENT,
-      amount: 100.5,
-      currency: Currency.TRY,
-      orderId: "12345",
-      cardNumber: "4444333322221111",
-      expiryMonth: "12",
-      expiryYear: "25",
-      cvv: "123",
-      cardHolderName: "John Doe",
-    });
+// Process a payment with all details
+async function processDetailedPayment() {
+	try {
+		const response = await nestpay.processPayment({
+			// Temel Bilgiler
+			type: TransactionType.PAYMENT,
+			orderId: '12345',
+			groupId: 'GROUP1',
+			transId: 'TRANS1',
 
-    console.log(response);
-  } catch (error) {
-    console.error(error);
-  }
+			// Tutar Bilgileri
+			amount: 100.5,
+			currency: Currency.TRY,
+			installment: 1,
+
+			// Kart Bilgileri
+			cardNumber: '4444333322221111',
+			expiryMonth: '12',
+			expiryYear: '25',
+			cvv: '123',
+			cardHolderName: 'John Doe',
+
+			// Müşteri Bilgileri
+			ipAddress: '192.168.1.1',
+			email: 'customer@example.com',
+
+			// Fatura Bilgileri
+			billTo: {
+				name: 'John Doe',
+				company: 'Example Corp',
+				street1: 'Invoice Street',
+				street2: 'No: 123',
+				city: 'Istanbul',
+				stateProv: 'Kadikoy',
+				postalCode: '34700',
+				country: 'TR',
+				telVoice: '+902121234567',
+			},
+
+			// Teslimat Bilgileri
+			shipTo: {
+				name: 'Jane Doe',
+				street1: 'Shipping Street',
+				city: 'Istanbul',
+				stateProv: 'Besiktas',
+				postalCode: '34353',
+				country: 'TR',
+				telVoice: '+902121234567',
+			},
+
+			// Sipariş Detayları
+			orderItems: [
+				{
+					itemNumber: 'ITEM1',
+					productCode: 'PRD1',
+					qty: 2,
+					desc: 'Example Product',
+					id: '1',
+					price: 50.25,
+					total: 100.5,
+				},
+			],
+		});
+
+		console.log(response);
+	} catch (error) {
+		console.error(error);
+	}
 }
+```
+
+### 3D Secure Payment
+
+```typescript
+// 1. 3D Secure başlatma
+const threeDResponse = await nestpay.initiate3DSecure({
+	orderId: '12345',
+	amount: 100.5,
+	currency: Currency.TRY,
+	cardNumber: '4444333322221111',
+	expiryMonth: '12',
+	expiryYear: '25',
+	cvv: '123',
+	cardHolderName: 'John Doe',
+	successUrl: 'https://your-site.com/success',
+	failureUrl: 'https://your-site.com/failure',
+});
+
+// 2. 3D Secure sonrası ödeme tamamlama
+const paymentResponse = await nestpay.process3DCallback({
+	oid: '12345',
+	status: 'success',
+	md: 'md123',
+	xid: 'xid123',
+	eci: 'eci123',
+	cavv: 'cavv123',
+	amount: '100.50',
+});
+```
+
+### İade İşlemi
+
+```typescript
+const refundResponse = await nestpay.refund('12345', 100.5);
 ```
 
 ### NestJS Usage
 
 ```typescript
-import { Module } from "@nestjs/common";
-import { NestPayService } from "@montarist/nestpay-api";
+import { Module } from '@nestjs/common';
+import { NestPayService } from '@montarist/nestpay-api';
 
 @Module({
-  providers: [
-    {
-      provide: NestPayService,
-      useValue: new NestPayService({
-        clientId: "YOUR_CLIENT_ID",
-        username: "YOUR_API_USERNAME",
-        password: "YOUR_API_PASSWORD",
-        environment: "TEST",
-        bank: "isbank",
-      }),
-    },
-  ],
-  exports: [NestPayService],
+	providers: [
+		{
+			provide: NestPayService,
+			useValue: new NestPayService({
+				clientId: 'YOUR_CLIENT_ID',
+				username: 'YOUR_API_USERNAME',
+				password: 'YOUR_API_PASSWORD',
+				environment: 'TEST',
+				bank: 'isbank',
+			}),
+		},
+	],
+	exports: [NestPayService],
 })
 export class PaymentModule {}
 ```
@@ -85,81 +166,40 @@ export class PaymentModule {}
 Then in your service:
 
 ```typescript
-import { Injectable } from "@nestjs/common";
-import {
-  NestPayService,
-  TransactionType,
-  Currency,
-} from "@montarist/nestpay-api";
+import { Injectable } from '@nestjs/common';
+import { NestPayService, TransactionType, Currency } from '@montarist/nestpay-api';
 
 @Injectable()
 export class PaymentService {
-  constructor(private readonly nestpayService: NestPayService) {}
+	constructor(private readonly nestpayService: NestPayService) {}
 
-  async processPayment(paymentDetails: any) {
-    return this.nestpayService.processPayment({
-      type: TransactionType.PAYMENT,
-      amount: paymentDetails.amount,
-      currency: Currency.TRY,
-      orderId: paymentDetails.orderId,
-      cardNumber: paymentDetails.cardNumber,
-      expiryMonth: paymentDetails.expiryMonth,
-      expiryYear: paymentDetails.expiryYear,
-      cvv: paymentDetails.cvv,
-      cardHolderName: paymentDetails.cardHolderName,
-    });
-  }
+	async processPayment(paymentDetails: any) {
+		return this.nestpayService.processPayment({
+			type: TransactionType.PAYMENT,
+			amount: paymentDetails.amount,
+			currency: Currency.TRY,
+			orderId: paymentDetails.orderId,
+			cardNumber: paymentDetails.cardNumber,
+			expiryMonth: paymentDetails.expiryMonth,
+			expiryYear: paymentDetails.expiryYear,
+			cvv: paymentDetails.cvv,
+			cardHolderName: paymentDetails.cardHolderName,
+			// ... diğer alanlar
+		});
+	}
 }
 ```
 
-## API Documentation
+## Desteklenen Bankalar
 
-### Configuration Options
-
-```typescript
-interface NestPayConfig {
-  clientId: string; // Client ID provided by the bank
-  username: string; // API Username
-  password: string; // API Password
-  storeKey?: string; // Store Key for 3D Secure
-  environment: "TEST" | "PROD";
-  bank:
-    | "isbank"
-    | "akbank"
-    | "denizbank"
-    | "halkbank"
-    | "ziraatbank"
-    | "teb"
-    | "finansbank"
-    | "anadolubank";
-}
-```
-
-### Transaction Types
-
-```typescript
-enum TransactionType {
-  AUTH = "Auth", // Authorization
-  PREAUTH = "PreAuth", // Pre-authorization
-  POSTAUTH = "PostAuth", // Post-authorization
-  VOID = "Void", // Void
-  REFUND = "Credit", // Refund
-  INQUIRY = "Inquiry", // Transaction Inquiry
-  PAYMENT = "Payment", // Direct Sale
-  HISTORY = "History", // Transaction History
-}
-```
-
-### Currencies
-
-```typescript
-enum Currency {
-  TRY = "949", // Turkish Lira
-  USD = "840", // US Dollar
-  EUR = "978", // Euro
-  GBP = "826", // British Pound
-}
-```
+- İş Bankası
+- Akbank
+- Denizbank
+- Halkbank
+- Ziraat Bankası
+- TEB
+- QNB Finansbank
+- Anadolubank
 
 ## Error Handling
 

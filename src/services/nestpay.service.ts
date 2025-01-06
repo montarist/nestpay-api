@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { createHash } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { parseStringPromise } from 'xml2js';
 import { Currency } from '../enums/currency.enum';
 import { ErrorCode } from '../enums/error-code.enum';
+import { ProcReturnCode } from '../enums/proc-return-code.enum';
 import { TransactionStatus } from '../enums/transaction-status.enum';
 import { TransactionType } from '../enums/transaction-type.enum';
 import { ThreeDSecureRequest } from '../interfaces/3d-secure-request.interface';
@@ -65,7 +67,7 @@ export class NestPayService {
         const urls: Record<string, { TEST: string; PROD: string }> = {
             isbank: {
                 TEST: 'https://entegrasyon.asseco-see.com.tr/fim/est3Dgate',
-                PROD: 'https://spos.isbank.com.tr/fim/est3Dgate'
+                PROD: 'https://sanalpos.isbank.com.tr/fim/est3Dgate'
             },
             akbank: {
                 TEST: 'https://entegrasyon.asseco-see.com.tr/fim/est3Dgate',
@@ -102,8 +104,12 @@ export class NestPayService {
 
     async processPayment(request: PaymentRequest): Promise<PaymentResponse> {
         try {
-            const xmlRequest = this.buildXmlRequest(request);
+            const processedRequest = {
+                ...request,
+                orderId: request.orderId || uuidv4().replace(/-/g, '')
+            };
 
+            const xmlRequest = this.buildXmlRequest(processedRequest);
             const response = await axios.post(this.baseUrl, xmlRequest, {
                 headers: { 'Content-Type': 'application/xml' }
             });
@@ -113,9 +119,10 @@ export class NestPayService {
         } catch (error) {
             return {
                 status: TransactionStatus.ERROR,
-                orderId: request.orderId,
+                orderId: request.orderId || '',
                 responseCode: ErrorCode.SYSTEM_ERROR,
-                responseMessage: error.message
+                responseMessage: error.message,
+                procReturnCode: ProcReturnCode.SYSTEM_ERROR
             };
         }
     }
@@ -126,8 +133,13 @@ export class NestPayService {
                 throw new Error('Store key is required for 3D Secure transactions');
             }
 
-            const hashData = this.createSecureHash(request);
-            const formData = this.create3DFormData(request, hashData);
+            const processedRequest = {
+                ...request,
+                orderId: request.orderId || uuidv4().replace(/-/g, '')
+            };
+
+            const hashData = this.createSecureHash(processedRequest);
+            const formData = this.create3DFormData(processedRequest, hashData);
 
             return {
                 status: '3D_PENDING',
@@ -156,7 +168,8 @@ export class NestPayService {
                     status: TransactionStatus.DECLINED,
                     orderId: callbackData.oid || '',
                     responseCode: ErrorCode.INVALID_3D_STATUS,
-                    responseMessage: '3D Authentication failed'
+                    responseMessage: '3D Authentication failed',
+                    procReturnCode: ProcReturnCode.INVALID_3D_STATUS
                 };
             }
 
@@ -186,18 +199,19 @@ export class NestPayService {
                 status: TransactionStatus.ERROR,
                 orderId: callbackData?.oid || '',
                 responseCode: ErrorCode.SYSTEM_ERROR,
-                responseMessage: error.message
+                responseMessage: error.message,
+                procReturnCode: ProcReturnCode.SYSTEM_ERROR
             };
         }
     }
 
-    async refund(orderId: string, amount: number): Promise<PaymentResponse> {
+    async refund(orderId: string, amount: number, currency: Currency = Currency.TRY): Promise<PaymentResponse> {
         try {
             const refundRequest: PaymentRequest = {
                 type: TransactionType.REFUND,
                 orderId,
                 amount,
-                currency: Currency.TRY,
+                currency,
                 cardNumber: '',
                 expiryMonth: '',
                 expiryYear: '',
@@ -217,7 +231,8 @@ export class NestPayService {
                 status: TransactionStatus.ERROR,
                 orderId,
                 responseCode: ErrorCode.REFUND_NOT_ALLOWED,
-                responseMessage: error.message
+                responseMessage: error.message,
+                procReturnCode: ProcReturnCode.REFUND_NOT_ALLOWED
             };
         }
     }
@@ -242,6 +257,40 @@ export class NestPayService {
     }
 
     private buildXmlRequest(request: PaymentRequest): string {
+        const buildAddress = (address: any, type: 'BillTo' | 'ShipTo') => {
+            if (!address) return '';
+            return `
+            <${type}>
+                <Name>${address.name}</Name>
+                ${address.company ? `<Company>${address.company}</Company>` : ''}
+                <Street1>${address.street1}</Street1>
+                ${address.street2 ? `<Street2>${address.street2}</Street2>` : ''}
+                ${address.street3 ? `<Street3>${address.street3}</Street3>` : ''}
+                <City>${address.city}</City>
+                <StateProv>${address.stateProv}</StateProv>
+                <PostalCode>${address.postalCode}</PostalCode>
+                <Country>${address.country}</Country>
+                <TelVoice>${address.telVoice}</TelVoice>
+            </${type}>`;
+        };
+
+        const buildOrderItems = (items: any[]) => {
+            if (!items?.length) return '';
+            return `
+            <OrderItemList>
+                ${items.map(item => `
+                <OrderItem>
+                    <ItemNumber>${item.itemNumber}</ItemNumber>
+                    <ProductCode>${item.productCode}</ProductCode>
+                    <Qty>${item.qty}</Qty>
+                    <Desc>${item.desc}</Desc>
+                    <Id>${item.id}</Id>
+                    <Price>${item.price}</Price>
+                    <Total>${item.total}</Total>
+                </OrderItem>`).join('')}
+            </OrderItemList>`;
+        };
+
         return `<?xml version="1.0" encoding="UTF-8"?>
         <CC5Request>
             <Name>${this.config.username}</Name>
@@ -251,9 +300,20 @@ export class NestPayService {
             <Amount>${request.amount}</Amount>
             <Currency>${request.currency}</Currency>
             <OrderId>${request.orderId}</OrderId>
+            ${request.groupId ? `<GroupId>${request.groupId}</GroupId>` : ''}
+            ${request.transId ? `<TransId>${request.transId}</TransId>` : ''}
+            ${request.ipAddress ? `<IPAddress>${request.ipAddress}</IPAddress>` : ''}
+            ${request.email ? `<Email>${request.email}</Email>` : ''}
             ${request.cardNumber ? `<Number>${request.cardNumber}</Number>` : ''}
             ${request.expiryMonth ? `<Expires>${request.expiryMonth}/${request.expiryYear}</Expires>` : ''}
             ${request.cvv ? `<Cvv2Val>${request.cvv}</Cvv2Val>` : ''}
+            ${request.installment ? `<Instalment>${request.installment}</Instalment>` : ''}
+            ${request.payerSecurityLevel ? `<PayerSecurityLevel>${request.payerSecurityLevel}</PayerSecurityLevel>` : ''}
+            ${request.payerTxnId ? `<PayerTxnId>${request.payerTxnId}</PayerTxnId>` : ''}
+            ${request.payerAuthenticationCode ? `<PayerAuthenticationCode>${request.payerAuthenticationCode}</PayerAuthenticationCode>` : ''}
+            ${request.billTo ? buildAddress(request.billTo, 'BillTo') : ''}
+            ${request.shipTo ? buildAddress(request.shipTo, 'ShipTo') : ''}
+            ${request.orderItems ? buildOrderItems(request.orderItems) : ''}
             ${request.extra ? Object.entries(request.extra).map(([key, value]) => `<${key}>${value}</${key}>`).join('') : ''}
         </CC5Request>`;
     }
@@ -261,6 +321,42 @@ export class NestPayService {
     private parseResponse(xmlResponse: any): PaymentResponse {
         const response = xmlResponse.CC5Response;
         const extra = response.Extra?.[0];
+        const procReturnCode = response.ProcReturnCode?.[0] || '99';
+
+        // Hata mesajlarını özelleştir
+        let responseMessage = response.ErrMsg?.[0] || response.Response[0];
+        switch (procReturnCode) {
+            case ProcReturnCode.INSUFFICIENT_FUNDS:
+                responseMessage = 'Yetersiz bakiye';
+                break;
+            case ProcReturnCode.INVALID_CVC2:
+                responseMessage = 'Geçersiz güvenlik kodu';
+                break;
+            case ProcReturnCode.EXPIRED_CARD:
+                responseMessage = 'Kartın son kullanma tarihi geçmiş';
+                break;
+            case ProcReturnCode.STOLEN_CARD:
+                responseMessage = 'Kayıp/Çalıntı kart';
+                break;
+            case ProcReturnCode.RESTRICTED_CARD:
+                responseMessage = 'Kısıtlı kart';
+                break;
+            case ProcReturnCode.SECURITY_VIOLATION:
+                responseMessage = 'Güvenlik ihlali';
+                break;
+            case ProcReturnCode.EXCEEDS_LIMIT:
+                responseMessage = 'İşlem limiti aşıldı';
+                break;
+            case ProcReturnCode.INVALID_INSTALLMENT:
+                responseMessage = 'Geçersiz taksit sayısı';
+                break;
+            case ProcReturnCode.DUPLICATE_ORDER:
+                responseMessage = 'Bu sipariş daha önce işleme alınmış';
+                break;
+            case ProcReturnCode.GENERAL_ERROR:
+                responseMessage = 'İşlem başarısız, lütfen daha sonra tekrar deneyiniz';
+                break;
+        }
 
         return {
             status: response.Response[0] === 'Approved'
@@ -268,11 +364,11 @@ export class NestPayService {
                 : TransactionStatus.DECLINED,
             transactionId: response.TransId?.[0],
             orderId: response.OrderId[0],
-            responseCode: response.ProcReturnCode[0],
-            responseMessage: response.ErrMsg?.[0] || response.Response[0],
+            responseCode: procReturnCode,
+            responseMessage: responseMessage,
             authCode: response.AuthCode?.[0],
             hostRefNum: response.HostRefNum?.[0],
-            procReturnCode: response.ProcReturnCode?.[0],
+            procReturnCode: procReturnCode as ProcReturnCode,
             tranDate: extra?.TranDate?.[0]
         };
     }
