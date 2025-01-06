@@ -9,6 +9,7 @@ import { TransactionStatus } from '../enums/transaction-status.enum';
 import { TransactionType } from '../enums/transaction-type.enum';
 import { ThreeDSecureRequest } from '../interfaces/3d-secure-request.interface';
 import { ThreeDSecureResponse } from '../interfaces/3d-secure-response.interface';
+import { BaseRequest } from '../interfaces/base-request.interface';
 import { NestPayConfig } from '../interfaces/nestpay-config.interface';
 import { PaymentRequest } from '../interfaces/payment-request.interface';
 import { PaymentResponse } from '../interfaces/payment-response.interface';
@@ -237,6 +238,56 @@ export class NestPayService {
         }
     }
 
+    async cancelWithOrderId(orderId: string): Promise<PaymentResponse> {
+        try {
+            const voidRequest: BaseRequest = {
+                type: TransactionType.VOID,
+                orderId
+            };
+
+            const xmlRequest = this.buildXmlRequest(voidRequest);
+            const response = await axios.post(this.baseUrl, xmlRequest, {
+                headers: { 'Content-Type': 'application/xml' }
+            });
+
+            const result = await parseStringPromise(response.data);
+            return this.parseResponse(result);
+        } catch (error) {
+            return {
+                status: TransactionStatus.ERROR,
+                orderId,
+                responseCode: ErrorCode.SYSTEM_ERROR,
+                responseMessage: error.message,
+                procReturnCode: ProcReturnCode.SYSTEM_ERROR
+            };
+        }
+    }
+
+    async cancelWithTransId(transId: string): Promise<PaymentResponse> {
+        try {
+            const voidRequest: BaseRequest = {
+                type: TransactionType.VOID,
+                transId
+            };
+
+            const xmlRequest = this.buildXmlRequest(voidRequest);
+            const response = await axios.post(this.baseUrl, xmlRequest, {
+                headers: { 'Content-Type': 'application/xml' }
+            });
+
+            const result = await parseStringPromise(response.data);
+            return this.parseResponse(result);
+        } catch (error) {
+            return {
+                status: TransactionStatus.ERROR,
+                orderId: '',
+                responseCode: ErrorCode.SYSTEM_ERROR,
+                responseMessage: error.message,
+                procReturnCode: ProcReturnCode.SYSTEM_ERROR
+            };
+        }
+    }
+
     private createSecureHash(request: ThreeDSecureRequest): string {
         const hashStr = `${this.config.clientId}${request.orderId}${request.amount}${request.successUrl}${request.failureUrl}${this.config.storeKey}`;
         return createHash('sha1').update(hashStr).digest('base64');
@@ -256,7 +307,7 @@ export class NestPayService {
         };
     }
 
-    private buildXmlRequest(request: PaymentRequest): string {
+    private buildXmlRequest(request: BaseRequest | PaymentRequest): string {
         const buildAddress = (address: any, type: 'BillTo' | 'ShipTo') => {
             if (!address) return '';
             return `
@@ -291,30 +342,32 @@ export class NestPayService {
             </OrderItemList>`;
         };
 
+        const paymentRequest = request as PaymentRequest;
+
         return `<?xml version="1.0" encoding="UTF-8"?>
         <CC5Request>
             <Name>${this.config.username}</Name>
             <Password>${this.config.password}</Password>
             <ClientId>${this.config.clientId}</ClientId>
             <Type>${request.type}</Type>
-            <Amount>${request.amount}</Amount>
-            <Currency>${request.currency}</Currency>
-            <OrderId>${request.orderId}</OrderId>
-            ${request.groupId ? `<GroupId>${request.groupId}</GroupId>` : ''}
+            ${request.orderId ? `<OrderId>${request.orderId}</OrderId>` : ''}
             ${request.transId ? `<TransId>${request.transId}</TransId>` : ''}
-            ${request.ipAddress ? `<IPAddress>${request.ipAddress}</IPAddress>` : ''}
-            ${request.email ? `<Email>${request.email}</Email>` : ''}
-            ${request.cardNumber ? `<Number>${request.cardNumber}</Number>` : ''}
-            ${request.expiryMonth ? `<Expires>${request.expiryMonth}/${request.expiryYear}</Expires>` : ''}
-            ${request.cvv ? `<Cvv2Val>${request.cvv}</Cvv2Val>` : ''}
-            ${request.installment ? `<Instalment>${request.installment}</Instalment>` : ''}
-            ${request.payerSecurityLevel ? `<PayerSecurityLevel>${request.payerSecurityLevel}</PayerSecurityLevel>` : ''}
-            ${request.payerTxnId ? `<PayerTxnId>${request.payerTxnId}</PayerTxnId>` : ''}
-            ${request.payerAuthenticationCode ? `<PayerAuthenticationCode>${request.payerAuthenticationCode}</PayerAuthenticationCode>` : ''}
-            ${request.billTo ? buildAddress(request.billTo, 'BillTo') : ''}
-            ${request.shipTo ? buildAddress(request.shipTo, 'ShipTo') : ''}
-            ${request.orderItems ? buildOrderItems(request.orderItems) : ''}
-            ${request.extra ? Object.entries(request.extra).map(([key, value]) => `<${key}>${value}</${key}>`).join('') : ''}
+            ${paymentRequest.amount ? `<Amount>${paymentRequest.amount}</Amount>` : ''}
+            ${paymentRequest.currency ? `<Currency>${paymentRequest.currency}</Currency>` : ''}
+            ${paymentRequest.groupId ? `<GroupId>${paymentRequest.groupId}</GroupId>` : ''}
+            ${paymentRequest.ipAddress ? `<IPAddress>${paymentRequest.ipAddress}</IPAddress>` : ''}
+            ${paymentRequest.email ? `<Email>${paymentRequest.email}</Email>` : ''}
+            ${paymentRequest.cardNumber ? `<Number>${paymentRequest.cardNumber}</Number>` : ''}
+            ${paymentRequest.expiryMonth ? `<Expires>${paymentRequest.expiryMonth}/${paymentRequest.expiryYear}</Expires>` : ''}
+            ${paymentRequest.cvv ? `<Cvv2Val>${paymentRequest.cvv}</Cvv2Val>` : ''}
+            ${paymentRequest.installment ? `<Instalment>${paymentRequest.installment}</Instalment>` : ''}
+            ${paymentRequest.payerSecurityLevel ? `<PayerSecurityLevel>${paymentRequest.payerSecurityLevel}</PayerSecurityLevel>` : ''}
+            ${paymentRequest.payerTxnId ? `<PayerTxnId>${paymentRequest.payerTxnId}</PayerTxnId>` : ''}
+            ${paymentRequest.payerAuthenticationCode ? `<PayerAuthenticationCode>${paymentRequest.payerAuthenticationCode}</PayerAuthenticationCode>` : ''}
+            ${paymentRequest.billTo ? buildAddress(paymentRequest.billTo, 'BillTo') : ''}
+            ${paymentRequest.shipTo ? buildAddress(paymentRequest.shipTo, 'ShipTo') : ''}
+            ${paymentRequest.orderItems ? buildOrderItems(paymentRequest.orderItems) : ''}
+            ${paymentRequest.extra ? Object.entries(paymentRequest.extra).map(([key, value]) => `<${key}>${value}</${key}>`).join('') : ''}
         </CC5Request>`;
     }
 

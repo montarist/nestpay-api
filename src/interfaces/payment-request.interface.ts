@@ -1,44 +1,26 @@
 import { Currency } from '../enums/currency.enum';
-import { TransactionType } from '../enums/transaction-type.enum';
 import { Address } from './address.interface';
+import { BaseRequest } from './base-request.interface';
 import { OrderItem } from './order-item.interface';
 
-export interface PaymentRequest {
-    // Temel Bilgiler
-    type: TransactionType;
-    orderId?: string;
-    groupId?: string;
-    transId?: string;
-
-    // Tutar Bilgileri
+export interface PaymentRequest extends BaseRequest {
     amount: number;
     currency: Currency;
-    installment?: number;
-
-    // Kart Bilgileri
     cardNumber: string;
     expiryMonth: string;
     expiryYear: string;
     cvv: string;
     cardHolderName: string;
-
-    // Müşteri Bilgileri
+    installment?: number;
+    description?: string;
     ipAddress?: string;
     email?: string;
-
-    // 3D Secure Bilgileri
-    payerSecurityLevel?: string;  // ECI
-    payerTxnId?: string;         // XID
-    payerAuthenticationCode?: string;  // CAVV
-
-    // Adres Bilgileri
+    groupId?: string;
+    payerSecurityLevel?: string;
+    payerTxnId?: string;
+    payerAuthenticationCode?: string;
     billTo?: Address;
     shipTo?: Address;
-
-    // Sipariş Detayları
     orderItems?: OrderItem[];
-
-    // Ek Bilgiler
-    description?: string;
     extra?: Record<string, string>;
 } 

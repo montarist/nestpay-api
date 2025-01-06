@@ -431,4 +431,72 @@ describe('NestPayService', () => {
             expect(result.responseCode).toBe(ErrorCode.REFUND_NOT_ALLOWED);
         });
     });
+
+    describe('cancel', () => {
+        it('should process a successful cancellation with orderId', async () => {
+            const mockResponse = {
+                data: `<?xml version="1.0" encoding="UTF-8"?>
+                    <CC5Response>
+                        <OrderId>12345</OrderId>
+                        <Response>Approved</Response>
+                        <ProcReturnCode>00</ProcReturnCode>
+                        <TransId>789</TransId>
+                    </CC5Response>`
+            };
+
+            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+
+            const result = await service.cancelWithOrderId('12345');
+
+            expect(result.status).toBe(TransactionStatus.APPROVED);
+            expect(result.orderId).toBe('12345');
+            expect(mockedAxios.post).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.stringContaining('<Type>Void</Type>'),
+                expect.any(Object)
+            );
+        });
+
+        it('should process a successful cancellation with transId', async () => {
+            const mockResponse = {
+                data: `<?xml version="1.0" encoding="UTF-8"?>
+                    <CC5Response>
+                        <OrderId>12345</OrderId>
+                        <Response>Approved</Response>
+                        <ProcReturnCode>00</ProcReturnCode>
+                        <TransId>789</TransId>
+                    </CC5Response>`
+            };
+
+            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+
+            const result = await service.cancelWithTransId('789');
+
+            expect(result.status).toBe(TransactionStatus.APPROVED);
+            expect(result.transactionId).toBe('789');
+            expect(mockedAxios.post).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.stringContaining('<TransId>789</TransId>'),
+                expect.any(Object)
+            );
+        });
+
+        it('should handle cancellation errors with orderId', async () => {
+            mockedAxios.post.mockRejectedValueOnce(new Error('Cancel not allowed'));
+
+            const result = await service.cancelWithOrderId('12345');
+
+            expect(result.status).toBe(TransactionStatus.ERROR);
+            expect(result.responseCode).toBe(ErrorCode.SYSTEM_ERROR);
+        });
+
+        it('should handle cancellation errors with transId', async () => {
+            mockedAxios.post.mockRejectedValueOnce(new Error('Cancel not allowed'));
+
+            const result = await service.cancelWithTransId('789');
+
+            expect(result.status).toBe(TransactionStatus.ERROR);
+            expect(result.responseCode).toBe(ErrorCode.SYSTEM_ERROR);
+        });
+    });
 }); 

@@ -10,6 +10,7 @@ This is Unofficial NestPay payment gateway integration for Node.js and NestJS ap
 - Comprehensive error handling
 - Both Node.js and NestJS support
 - Full XML field support including billing, shipping, and order details
+- Auto-generated order IDs (UUID)
 
 ## Installation
 
@@ -139,6 +140,16 @@ const paymentResponse = await nestpay.process3DCallback({
 const refundResponse = await nestpay.refund('12345', 100.5);
 ```
 
+### İptal İşlemi
+
+```typescript
+// OrderId ile iptal
+const cancelResponse = await nestpay.cancelWithOrderId('12345');
+
+// TransId ile iptal
+const cancelWithTransId = await nestpay.cancelWithTransId('789');
+```
+
 ### NestJS Usage
 
 ```typescript
@@ -186,6 +197,10 @@ export class PaymentService {
 			cardHolderName: paymentDetails.cardHolderName,
 			// ... diğer alanlar
 		});
+	}
+
+	async cancelPayment(orderId: string) {
+		return this.nestpayService.cancelWithOrderId(orderId);
 	}
 }
 ```
