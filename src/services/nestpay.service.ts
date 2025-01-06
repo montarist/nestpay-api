@@ -25,8 +25,8 @@ export class NestPayService {
     private getBaseUrl(): string {
         const urls: Record<string, { TEST: string; PROD: string }> = {
             isbank: {
-                TEST: 'https://entegrasyon.asseco-see.com.tr/fim/api',
-                PROD: 'https://spos.isbank.com.tr/fim/api'
+                TEST: 'https://istest.asseco-see.com.tr/fim/api',
+                PROD: 'https://sanalpos.isbank.com.tr/fim/api'
             },
             akbank: {
                 TEST: 'https://entegrasyon.asseco-see.com.tr/fim/api',
@@ -103,6 +103,7 @@ export class NestPayService {
     async processPayment(request: PaymentRequest): Promise<PaymentResponse> {
         try {
             const xmlRequest = this.buildXmlRequest(request);
+
             const response = await axios.post(this.baseUrl, xmlRequest, {
                 headers: { 'Content-Type': 'application/xml' }
             });
@@ -250,7 +251,7 @@ export class NestPayService {
             <Amount>${request.amount}</Amount>
             <Currency>${request.currency}</Currency>
             <OrderId>${request.orderId}</OrderId>
-            ${request.cardNumber ? `<Pan>${request.cardNumber}</Pan>` : ''}
+            ${request.cardNumber ? `<Number>${request.cardNumber}</Number>` : ''}
             ${request.expiryMonth ? `<Expires>${request.expiryMonth}/${request.expiryYear}</Expires>` : ''}
             ${request.cvv ? `<Cvv2Val>${request.cvv}</Cvv2Val>` : ''}
             ${request.extra ? Object.entries(request.extra).map(([key, value]) => `<${key}>${value}</${key}>`).join('') : ''}
