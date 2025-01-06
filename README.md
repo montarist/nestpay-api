@@ -1,6 +1,6 @@
-# @montarist/nestpay-api
+# UNOFFICIAL NestPay API
 
-NestPay (EST) payment gateway integration for Node.js and NestJS applications. This package provides a simple and type-safe way to integrate with Turkish banks using the NestPay (EST) payment gateway.
+This is Unofficial NestPay payment gateway integration for Node.js and NestJS applications. This package provides a simple and type-safe way to integrate with Turkish banks using the NestPay payment gateway.
 
 ## Features
 
