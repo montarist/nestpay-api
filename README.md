@@ -4,6 +4,14 @@ This is Unofficial NestPay payment gateway integration for Node.js and NestJS ap
 
 [![NestPay API Pipeline](https://github.com/montarist/nestpay-api/actions/workflows/pipeline.yml/badge.svg)](https://github.com/montarist/nestpay-api/actions/workflows/pipeline.yml)
 
+---
+
+## Important Notice
+
+This package is fully licensed under the **MIT License** and is created to assist developers in integrating NestPay for Turkish banks. While this package aims to simplify integration, **the usage of this package comes with no warranty or liability**.
+
+For any issues encountered, feel free to reach out. You can also support the project by **forking** and contributing. Together, we can make this library even better!
+
 ## Features
 
 - TypeScript support with full type definitions
@@ -41,7 +49,7 @@ async function processDetailedPayment() {
 	try {
 		const response = await nestpay.processPayment({
 			// Temel Bilgiler
-			type: TransactionType.PAYMENT,
+			type: TransactionType.AUTH,
 			orderId: '12345',
 			groupId: 'GROUP1',
 			transId: 'TRANS1',
@@ -188,7 +196,7 @@ export class PaymentService {
 
 	async processPayment(paymentDetails: any) {
 		return this.nestpayService.processPayment({
-			type: TransactionType.PAYMENT,
+			type: TransactionType.AUTH,
 			amount: paymentDetails.amount,
 			currency: Currency.TRY,
 			orderId: paymentDetails.orderId,
@@ -207,7 +215,7 @@ export class PaymentService {
 }
 ```
 
-## Desteklenen Bankalar
+## Supported Banks
 
 - İş Bankası
 - Akbank
