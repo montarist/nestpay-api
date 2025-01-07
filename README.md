@@ -2,6 +2,8 @@
 
 This is Unofficial NestPay payment gateway integration for Node.js and NestJS applications. This package provides a simple and type-safe way to integrate with Turkish banks using the NestPay payment gateway.
 
+[![NestPay API Pipeline](https://github.com/montarist/nestpay-api/actions/workflows/pipeline.yml/badge.svg)](https://github.com/montarist/nestpay-api/actions/workflows/pipeline.yml)
+
 ## Features
 
 - TypeScript support with full type definitions
