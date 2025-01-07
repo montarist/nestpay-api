@@ -179,7 +179,7 @@ export class NestPayService {
                 ...callbackData,
                 type: TransactionType.AUTH,
                 amount: parseFloat(callbackData.amount),
-                currency: Currency.TRY,
+                currency: callbackData.currency,
                 cardNumber: '',
                 expiryMonth: '',
                 expiryYear: '',
